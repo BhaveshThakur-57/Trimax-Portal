@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="https://via.placeholder.com/150x150?text=Trimax+Logo" alt="Trimax Logo" width="120" />
+  <img src="./screenshots/logo.png" alt="Trimax Logo" width="120" />
 
   # 🌟 Trimax Portal
   
@@ -34,27 +34,21 @@
 
 ## 📸 Screenshots
 
-| Home Page | Admin Dashboard |
+| Login Page | Admin Dashboard |
 | :---: | :---: |
-| <img src="https://via.placeholder.com/600x350?text=Home+Page" alt="Home Page"> | <img src="https://via.placeholder.com/600x350?text=Admin+Dashboard" alt="Admin Dashboard"> |
+| <img src="./screenshots/login.png" alt="Login Page"> | <img src="./screenshots/admin-dashboard.png" alt="Admin Dashboard"> |
 
 | Leads Management | Quotations |
 | :---: | :---: |
-| <img src="https://via.placeholder.com/600x350?text=Leads+Management" alt="Leads Management"> | <img src="https://via.placeholder.com/600x350?text=Quotations" alt="Quotations"> |
+| <img src="./screenshots/leads.png" alt="Leads Management"> | <img src="./screenshots/quotations.png" alt="Quotations"> |
 
 | User Management | Leave Management |
 | :---: | :---: |
-| <img src="https://via.placeholder.com/600x350?text=User+Management" alt="User Management"> | <img src="https://via.placeholder.com/600x350?text=Leave+Management" alt="Leave Management"> |
+| <img src="./screenshots/user-management.png" alt="User Management"> | <img src="./screenshots/leave-management.png" alt="Leave Management"> |
 
-| Settings | About / Services Page |
+| Settings | Employee Dashboard |
 | :---: | :---: |
-| <img src="https://via.placeholder.com/600x350?text=Settings" alt="Settings"> | <img src="https://via.placeholder.com/600x350?text=About+Services+Page" alt="About Services Page"> |
-
-| Contact Page |
-| :---: |
-| <img src="https://via.placeholder.com/600x350?text=Contact+Page" alt="Contact Page"> |
-
-> **Note:** Actual screenshots to be added manually. Simply replace the `https://via.placeholder.com/...` links above with the relative path to your screenshots (e.g., `./screenshots/home.png`).
+| <img src="./screenshots/settings.png" alt="Settings"> | <img src="./screenshots/employee-dashboard.png" alt="Employee Dashboard"> |
 
 ---
 
