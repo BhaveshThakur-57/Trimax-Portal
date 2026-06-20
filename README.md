@@ -76,8 +76,7 @@ Provides a bird's-eye view of organizational metrics, active leads, employee sta
 - Streamlined approval workflows and templating.
 
 💬 **Integrated Communications**  
-- Robust built-in email functionality via Nodemailer.
-- WhatsApp API integrations (`whatsapp-web.js`) for seamless client engagement.
+- Robust built-in email functionality via Nodemailer for seamless client engagement.
 
 🔒 **Enterprise-Grade Security**  
 - JWT-based authentication and secure Role-Based Access Control (RBAC).
@@ -98,7 +97,7 @@ Provides a bird's-eye view of organizational metrics, active leads, employee sta
 - **Database:** MongoDB (with Mongoose ORM)
 - **Authentication:** JSON Web Tokens (JWT), bcryptjs
 - **File Processing:** PDFKit, Multer, ExcelJS
-- **Communication:** Nodemailer, `whatsapp-web.js`
+- **Communication:** Nodemailer
 - **Task Scheduling:** Node-Cron
 
 ---
@@ -110,7 +109,7 @@ Trimax Portal adopts a modern **Client-Server Architecture**:
 1. **Presentation Layer (Admin Frontend):** A highly responsive, SPA-based React interface optimized for performance and an aesthetic, premium user experience.
 2. **Application Layer (Node.js/Express Backend):** RESTful APIs handling core business logic, background jobs (cron), and complex operations like document generation.
 3. **Data Layer (MongoDB):** Highly scalable NoSQL database optimized for complex, relational-like queries required by ERP solutions.
-4. **Integration Layer:** Interfaces with SMTP servers for email delivery and headless browser instances for WhatsApp connectivity.
+4. **Integration Layer:** Interfaces with SMTP servers for robust email delivery and communication.
 
 ---
 
