@@ -31,7 +31,7 @@ const seedData = async () => {
     const admin = await User.create({
       name: 'Admin User',
       email: 'admin@trimax.com',
-      password: 'Admin@123',
+      password: process.env.DEFAULT_ADMIN_PASSWORD || 'Admin@123_Change_Me_Now!',
       role: 'admin',
       status: 'Active'
     });
@@ -42,7 +42,7 @@ const seedData = async () => {
       {
         name: 'John Doe',
         email: 'john@example.com',
-        password: 'User@123',
+        password: process.env.DEFAULT_USER_PASSWORD || 'User@123_Change_Me_Now!',
         role: 'employee',
         status: 'Active',
         joinDate: '2024-01-15'
@@ -50,7 +50,7 @@ const seedData = async () => {
       {
         name: 'Jane Smith',
         email: 'jane@example.com',
-        password: 'User@123',
+        password: process.env.DEFAULT_USER_PASSWORD || 'User@123_Change_Me_Now!',
         role: 'employee',
         status: 'Active',
         joinDate: '2024-02-20'
@@ -58,7 +58,7 @@ const seedData = async () => {
       {
         name: 'Bob Johnson',
         email: 'bob@example.com',
-        password: 'Manager@123',
+        password: process.env.DEFAULT_MANAGER_PASSWORD || 'Manager@123_Change_Me_Now!',
         role: 'employee',
         status: 'Active',
         joinDate: '2024-03-10'
@@ -243,10 +243,10 @@ const seedData = async () => {
     console.log('\n🎉 Database seeding completed successfully!');
     console.log('\n📝 Login Credentials:');
     console.log('Email: admin@trimax.com');
-    console.log('Password: Admin@123');
+    console.log(`Password: ${process.env.DEFAULT_ADMIN_PASSWORD || 'Admin@123_Change_Me_Now!'}`);
     console.log('\nOther test users:');
-    console.log('Email: john@example.com | Password: User@123');
-    console.log('Email: bob@example.com | Password: Manager@123');
+    console.log(`Email: john@example.com | Password: ${process.env.DEFAULT_USER_PASSWORD || 'User@123_Change_Me_Now!'}`);
+    console.log(`Email: bob@example.com | Password: ${process.env.DEFAULT_MANAGER_PASSWORD || 'Manager@123_Change_Me_Now!'}`);
     console.log('\n📊 Services Created:');
     services.forEach((service, index) => {
       console.log(`   ${index + 1}. ${service.name} - ₹${service.price.toLocaleString('en-IN')}`);

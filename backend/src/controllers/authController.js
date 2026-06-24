@@ -6,7 +6,7 @@ const { sendWelcomeEmail, sendPasswordResetEmail } = require('../utils/emailServ
 // Generate JWT Token
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRE || '7d'
+    expiresIn: process.env.JWT_EXPIRE || '15m'
   });
 };
 
@@ -46,12 +46,32 @@ const generateEmployeeId = async () => {
   return employeeId;
 };
 
+// ✅ Password strength validator
+const validatePassword = (password) => {
+  if (!password || password.length < 8) return 'Password must be at least 8 characters';
+  if (!/[A-Z]/.test(password)) return 'Password must contain an uppercase letter';
+  if (!/[a-z]/.test(password)) return 'Password must contain a lowercase letter';
+  if (!/[0-9]/.test(password)) return 'Password must contain a number';
+  if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) return 'Password must contain a special character';
+  return null;
+};
+
 // @desc    Register first admin
 // @route   POST /api/auth/register
 // @access  Public
 exports.register = async (req, res) => {
   try {
     const { name, email, password } = req.body;
+
+    // ✅ Validate inputs
+    if (!name || !email || !password) {
+      return res.status(400).json({ success: false, message: 'Name, email, and password are required' });
+    }
+
+    const passwordError = validatePassword(password);
+    if (passwordError) {
+      return res.status(400).json({ success: false, message: passwordError });
+    }
 
     const userExists = await User.findOne({ email });
     if (userExists) {
@@ -92,9 +112,10 @@ exports.register = async (req, res) => {
       }
     });
   } catch (error) {
+    console.error('Register error:', error.message);
     res.status(500).json({
       success: false,
-      message: error.message
+      message: 'Registration failed. Please try again.'
     });
   }
 };
@@ -153,9 +174,10 @@ exports.login = async (req, res) => {
       }
     });
   } catch (error) {
+    console.error('Login error:', error.message);
     res.status(500).json({
       success: false,
-      message: error.message
+      message: 'Login failed. Please try again.'
     });
   }
 };
@@ -176,9 +198,10 @@ exports.getMe = async (req, res) => {
       data: userData
     });
   } catch (error) {
+    console.error('GetMe error:', error.message);
     res.status(500).json({
       success: false,
-      message: error.message
+      message: 'Failed to fetch profile'
     });
   }
 };
@@ -189,6 +212,16 @@ exports.getMe = async (req, res) => {
 exports.createEmployee = async (req, res) => {
   try {
     const { name, email, password, department, designation, joiningDate, salary, phone, address, workingType } = req.body;
+
+    // ✅ Validate required fields
+    if (!name || !email || !password) {
+      return res.status(400).json({ success: false, message: 'Name, email, and password are required' });
+    }
+
+    const passwordError = validatePassword(password);
+    if (passwordError) {
+      return res.status(400).json({ success: false, message: passwordError });
+    }
 
     const userExists = await User.findOne({ email });
     if (userExists) {
@@ -252,10 +285,10 @@ exports.createEmployee = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error creating employee:', error);
+    console.error('Error creating employee:', error.message);
     res.status(500).json({
       success: false,
-      message: error.message
+      message: 'Failed to create employee. Please try again.'
     });
   }
 };
@@ -275,9 +308,10 @@ exports.getAllEmployees = async (req, res) => {
       data: employees
     });
   } catch (error) {
+    console.error('Get employees error:', error.message);
     res.status(500).json({
       success: false,
-      message: error.message
+      message: 'Failed to fetch employees'
     });
   }
 };
@@ -289,12 +323,17 @@ exports.forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
 
+    if (!email) {
+      return res.status(400).json({ success: false, message: 'Email is required' });
+    }
+
     const user = await User.findOne({ email });
 
+    // ✅ Always return success to prevent user enumeration
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'No user found with this email'
+      return res.status(200).json({
+        success: true,
+        message: 'If an account with that email exists, a password reset link has been sent.'
       });
     }
 
@@ -319,7 +358,7 @@ exports.forgotPassword = async (req, res) => {
       if (emailResult.success) {
         res.status(200).json({
           success: true,
-          message: 'Password reset email sent successfully! Please check your inbox.'
+          message: 'If an account with that email exists, a password reset link has been sent.'
         });
       } else {
         throw new Error('Email sending failed');
@@ -336,9 +375,10 @@ exports.forgotPassword = async (req, res) => {
     }
 
   } catch (error) {
+    console.error('Forgot password error:', error.message);
     res.status(500).json({
       success: false,
-      message: error.message
+      message: 'Something went wrong. Please try again.'
     });
   }
 };
@@ -349,6 +389,12 @@ exports.forgotPassword = async (req, res) => {
 exports.resetPassword = async (req, res) => {
   try {
     const { password } = req.body;
+
+    // ✅ Validate new password strength
+    const passwordError = validatePassword(password);
+    if (passwordError) {
+      return res.status(400).json({ success: false, message: passwordError });
+    }
 
     const resetPasswordToken = crypto
       .createHash('sha256')
@@ -378,9 +424,10 @@ exports.resetPassword = async (req, res) => {
     });
 
   } catch (error) {
+    console.error('Reset password error:', error.message);
     res.status(500).json({
       success: false,
-      message: error.message
+      message: 'Password reset failed. Please try again.'
     });
   }
 };
@@ -405,7 +452,8 @@ exports.updateProfile = async (req, res) => {
 
     res.status(200).json({ success: true, message: 'Profile updated', data: user });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    console.error('Update profile error:', error.message);
+    res.status(500).json({ success: false, message: 'Failed to update profile' });
   }
 };
 
@@ -415,6 +463,16 @@ exports.updateProfile = async (req, res) => {
 exports.changePassword = async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ success: false, message: 'Current and new password are required' });
+    }
+
+    // ✅ Validate new password strength
+    const passwordError = validatePassword(newPassword);
+    if (passwordError) {
+      return res.status(400).json({ success: false, message: passwordError });
+    }
 
     const user = await User.findById(req.user.id).select('+password');
 
@@ -442,9 +500,10 @@ exports.changePassword = async (req, res) => {
     });
 
   } catch (error) {
+    console.error('Change password error:', error.message);
     res.status(500).json({
       success: false,
-      message: error.message
+      message: 'Failed to change password'
     });
   }
 };
@@ -463,10 +522,14 @@ exports.uploadProfilePicture = async (req, res) => {
       });
     }
 
-    if (!profilePicture.startsWith('data:image')) {
+    // ✅ Only allow safe image MIME types (block SVG to prevent XSS)
+    const allowedPrefixes = ['data:image/jpeg', 'data:image/jpg', 'data:image/png', 'data:image/webp'];
+    const isAllowed = allowedPrefixes.some(prefix => profilePicture.startsWith(prefix));
+    
+    if (!isAllowed) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid image format. Please upload a valid image.'
+        message: 'Only JPEG, PNG, and WebP images are allowed.'
       });
     }
 
@@ -499,9 +562,10 @@ exports.uploadProfilePicture = async (req, res) => {
     });
 
   } catch (error) {
+    console.error('Upload profile picture error:', error.message);
     res.status(500).json({
       success: false,
-      message: error.message
+      message: 'Failed to update profile picture'
     });
   }
 };
@@ -536,9 +600,10 @@ exports.removeProfilePicture = async (req, res) => {
     });
 
   } catch (error) {
+    console.error('Remove profile picture error:', error.message);
     res.status(500).json({
       success: false,
-      message: error.message
+      message: 'Failed to remove profile picture'
     });
   }
 };

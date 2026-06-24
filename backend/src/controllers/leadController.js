@@ -3,8 +3,9 @@
 const Lead = require('../models/Lead');
 const User = require('../models/User');
 const { createNotification } = require('./notificationController');
+const { escapeRegex } = require('../middleware/sanitize');
 
-// ── Helper: check if user has access (Admin OR Sales dept) ──
+// ── Helper: check if user has access to the leads module ──
 const hasLeadAccess = (user) => {
   if (!user) return false;
   if (user.role === 'admin') return true;
@@ -12,10 +13,24 @@ const hasLeadAccess = (user) => {
   return false;
 };
 
-// ── GET all leads ──
-exports.getAllLeads = async (req, res) => {
-  try {
+// ── Helper: check if user owns/is assigned to a specific lead ──
+const canModifyLead = (user, lead) => {
+  if (user.role === 'admin') return true;
+  
+  // Convert objectIds to string for safe comparison
+  const userIdStr = user._id.toString();
+  const assignedStr = lead.assignedTo ? lead.assignedTo.toString() : null;
+  const createdStr = lead.createdBy ? lead.createdBy.toString() : null;
 
+  if (assignedStr === userIdStr) return true;
+  if (createdStr === userIdStr) return true;
+  
+  return false;
+};
+
+// ── GET all leads ──
+exports.getAllLeads = async (req, res, next) => {
+  try {
     if (!hasLeadAccess(req.user)) {
       return res.status(403).json({
         success: false,
@@ -24,32 +39,44 @@ exports.getAllLeads = async (req, res) => {
     }
 
     const { status, priority, source, assignedTo, search } = req.query;
-
     const filter = {};
 
-    if (status && status !== 'all') {
-      filter.status = status;
+    // If not admin, restrict visibility to leads they created or are assigned to
+    if (req.user.role !== 'admin') {
+      filter.$or = [
+        { assignedTo: req.user._id },
+        { createdBy: req.user._id }
+      ];
     }
 
-    if (priority && priority !== 'all') {
-      filter.priority = priority;
-    }
-
-    if (source && source !== 'all') {
-      filter.source = source;
-    }
-
-    if (assignedTo && assignedTo !== 'all') {
+    if (status && status !== 'all') filter.status = status;
+    if (priority && priority !== 'all') filter.priority = priority;
+    if (source && source !== 'all') filter.source = source;
+    
+    // Admin filtering by a specific assigned user
+    if (assignedTo && assignedTo !== 'all' && req.user.role === 'admin') {
       filter.assignedTo = assignedTo;
     }
 
     if (search) {
-      filter.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { phone: { $regex: search, $options: 'i' } },
-        { email: { $regex: search, $options: 'i' } },
-        { company: { $regex: search, $options: 'i' } },
-      ];
+      const safeSearch = escapeRegex(search);
+      
+      // If $or already exists (for ownership), we must use $and to combine them
+      const searchFilter = {
+        $or: [
+          { name: { $regex: safeSearch, $options: 'i' } },
+          { phone: { $regex: safeSearch, $options: 'i' } },
+          { email: { $regex: safeSearch, $options: 'i' } },
+          { company: { $regex: safeSearch, $options: 'i' } },
+        ]
+      };
+
+      if (filter.$or) {
+        filter.$and = [ { $or: filter.$or }, searchFilter ];
+        delete filter.$or;
+      } else {
+        filter.$or = searchFilter.$or;
+      }
     }
 
     const leads = await Lead.find(filter)
@@ -63,25 +90,15 @@ exports.getAllLeads = async (req, res) => {
     });
 
   } catch (err) {
-
-    console.error('Get leads error:', err);
-
-    res.status(500).json({
-      success: false,
-      message: err.message
-    });
+    next(err);
   }
 };
 
 // ── GET single lead ──
-exports.getLeadById = async (req, res) => {
+exports.getLeadById = async (req, res, next) => {
   try {
-
     if (!hasLeadAccess(req.user)) {
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied.'
-      });
+      return res.status(403).json({ success: false, message: 'Access denied.' });
     }
 
     const lead = await Lead.findById(req.params.id)
@@ -89,67 +106,38 @@ exports.getLeadById = async (req, res) => {
       .populate('createdBy', 'name');
 
     if (!lead) {
-      return res.status(404).json({
-        success: false,
-        message: 'Lead not found'
-      });
+      return res.status(404).json({ success: false, message: 'Lead not found' });
     }
 
-    res.json({
-      success: true,
-      data: lead
-    });
+    if (!canModifyLead(req.user, lead)) {
+      return res.status(403).json({ success: false, message: 'Not authorized to view this lead.' });
+    }
+
+    res.json({ success: true, data: lead });
 
   } catch (err) {
-
-    console.error('Get lead error:', err);
-
-    res.status(500).json({
-      success: false,
-      message: err.message
-    });
+    next(err);
   }
 };
 
 // ── CREATE lead ──
-exports.createLead = async (req, res) => {
+exports.createLead = async (req, res, next) => {
   try {
-
     if (!hasLeadAccess(req.user)) {
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied.'
-      });
+      return res.status(403).json({ success: false, message: 'Access denied.' });
     }
 
     const {
-      name,
-      phone,
-      email,
-      company,
-      source,
-      status,
-      priority,
-      dealValue,
-      followUpDate,
-      assignedTo
+      name, phone, email, company, source, status,
+      priority, dealValue, followUpDate, assignedTo
     } = req.body;
 
     if (!name || !phone) {
-      return res.status(400).json({
-        success: false,
-        message: 'Name and phone are required'
-      });
+      return res.status(400).json({ success: false, message: 'Name and phone are required' });
     }
 
     const lead = await Lead.create({
-      name,
-      phone,
-      email,
-      company,
-      source,
-      status,
-      priority,
+      name, phone, email, company, source, status, priority,
       dealValue: dealValue || 0,
       followUpDate: followUpDate || null,
       assignedTo: assignedTo || null,
@@ -163,21 +151,18 @@ exports.createLead = async (req, res) => {
       }]
     });
 
-    // ✅ Notify admins
-    const admins = await User.find({
-      role: { $regex: /^admin$/i }
-    });
-
+    // Notify admins
+    const admins = await User.find({ role: { $regex: /^admin$/i } });
     for (const admin of admins) {
-
-      await createNotification(
-        admin._id,
-        'New Lead Created',
-        `${lead.name} added as a new lead`,
-        'user',
-        `/leads/${lead._id}`
-      );
-
+      try {
+        await createNotification(
+          admin._id,
+          'New Lead Created',
+          `${lead.name} added as a new lead`,
+          'user',
+          `/leads/${lead._id}`
+        );
+      } catch (e) {}
     }
 
     const populated = await Lead.findById(lead._id)
@@ -191,67 +176,43 @@ exports.createLead = async (req, res) => {
     });
 
   } catch (err) {
-
-    console.error('Lead create error:', err);
-
-    res.status(500).json({
-      success: false,
-      message: err.message
-    });
+    next(err);
   }
 };
 
 // ── UPDATE lead ──
-exports.updateLead = async (req, res) => {
+exports.updateLead = async (req, res, next) => {
   try {
-
     if (!hasLeadAccess(req.user)) {
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied.'
-      });
+      return res.status(403).json({ success: false, message: 'Access denied.' });
+    }
+
+    const leadCheck = await Lead.findById(req.params.id);
+    if (!leadCheck) {
+      return res.status(404).json({ success: false, message: 'Lead not found' });
+    }
+
+    if (!canModifyLead(req.user, leadCheck)) {
+      return res.status(403).json({ success: false, message: 'Not authorized to modify this lead.' });
     }
 
     const {
-      name,
-      phone,
-      email,
-      company,
-      source,
-      status,
-      priority,
-      dealValue,
-      followUpDate,
-      assignedTo
+      name, phone, email, company, source, status,
+      priority, dealValue, followUpDate, assignedTo
     } = req.body;
 
     const lead = await Lead.findByIdAndUpdate(
       req.params.id,
       {
-        name,
-        phone,
-        email,
-        company,
-        source,
-        status,
-        priority,
+        name, phone, email, company, source, status, priority,
         dealValue: dealValue || 0,
         followUpDate: followUpDate || null,
         assignedTo: assignedTo || null
       },
-      {
-        new: true
-      }
+      { new: true }
     )
       .populate('assignedTo', 'name employeeId')
       .populate('createdBy', 'name');
-
-    if (!lead) {
-      return res.status(404).json({
-        success: false,
-        message: 'Lead not found'
-      });
-    }
 
     res.json({
       success: true,
@@ -260,35 +221,28 @@ exports.updateLead = async (req, res) => {
     });
 
   } catch (err) {
-
-    console.error('Lead update error:', err);
-
-    res.status(500).json({
-      success: false,
-      message: err.message
-    });
+    next(err);
   }
 };
 
 // ── DELETE lead ──
-exports.deleteLead = async (req, res) => {
+exports.deleteLead = async (req, res, next) => {
   try {
-
     if (!hasLeadAccess(req.user)) {
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied.'
-      });
+      return res.status(403).json({ success: false, message: 'Access denied.' });
     }
 
-    const lead = await Lead.findByIdAndDelete(req.params.id);
-
-    if (!lead) {
-      return res.status(404).json({
-        success: false,
-        message: 'Lead not found'
-      });
+    const leadCheck = await Lead.findById(req.params.id);
+    if (!leadCheck) {
+      return res.status(404).json({ success: false, message: 'Lead not found' });
     }
+
+    // Only admin or the creator can delete a lead
+    if (req.user.role !== 'admin' && leadCheck.createdBy.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ success: false, message: 'Only admin or the creator can delete this lead.' });
+    }
+
+    await Lead.findByIdAndDelete(req.params.id);
 
     res.json({
       success: true,
@@ -296,24 +250,15 @@ exports.deleteLead = async (req, res) => {
     });
 
   } catch (err) {
-
-    console.error('Delete lead error:', err);
-
-    res.status(500).json({
-      success: false,
-      message: err.message
-    });
+    next(err);
   }
 };
 
 // ── UPDATE lead status ──
-exports.updateLeadStatus = async (req, res) => {
+exports.updateLeadStatus = async (req, res, next) => {
   try {
     if (!hasLeadAccess(req.user)) {
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied.'
-      });
+      return res.status(403).json({ success: false, message: 'Access denied.' });
     }
 
     const { status } = req.body;
@@ -321,6 +266,10 @@ exports.updateLeadStatus = async (req, res) => {
     const oldLead = await Lead.findById(req.params.id);
     if (!oldLead) {
       return res.status(404).json({ success: false, message: 'Lead not found' });
+    }
+
+    if (!canModifyLead(req.user, oldLead)) {
+      return res.status(403).json({ success: false, message: 'Not authorized to modify this lead.' });
     }
 
     const lead = await Lead.findByIdAndUpdate(
@@ -342,13 +291,6 @@ exports.updateLeadStatus = async (req, res) => {
       .populate('assignedTo', 'name employeeId')
       .populate('createdBy', 'name');
 
-    if (!lead) {
-      return res.status(404).json({
-        success: false,
-        message: 'Lead not found'
-      });
-    }
-
     res.json({
       success: true,
       data: lead,
@@ -356,41 +298,30 @@ exports.updateLeadStatus = async (req, res) => {
     });
 
   } catch (err) {
-    console.error('Lead status update error:', err);
-    res.status(500).json({
-      success: false,
-      message: err.message
-    });
+    next(err);
   }
 };
 
 // ── ADD remark to lead ──
-exports.addRemark = async (req, res) => {
+exports.addRemark = async (req, res, next) => {
   try {
-
     if (!hasLeadAccess(req.user)) {
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied.'
-      });
+      return res.status(403).json({ success: false, message: 'Access denied.' });
     }
 
     const { text } = req.body;
 
     if (!text || !text.trim()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Remark text is required'
-      });
+      return res.status(400).json({ success: false, message: 'Remark text is required' });
     }
 
     const lead = await Lead.findById(req.params.id);
-
     if (!lead) {
-      return res.status(404).json({
-        success: false,
-        message: 'Lead not found'
-      });
+      return res.status(404).json({ success: false, message: 'Lead not found' });
+    }
+
+    if (!canModifyLead(req.user, lead)) {
+      return res.status(403).json({ success: false, message: 'Not authorized to comment on this lead.' });
     }
 
     lead.remarks.unshift({
@@ -421,30 +352,31 @@ exports.addRemark = async (req, res) => {
     });
 
   } catch (err) {
-
-    console.error('Add remark error:', err);
-
-    res.status(500).json({
-      success: false,
-      message: err.message
-    });
+    next(err);
   }
 };
 
 // ── GET stats ──
-exports.getLeadStats = async (req, res) => {
+exports.getLeadStats = async (req, res, next) => {
   try {
-
     if (!hasLeadAccess(req.user)) {
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied.'
-      });
+      return res.status(403).json({ success: false, message: 'Access denied.' });
+    }
+
+    const filter = {};
+    
+    // Apply ownership filtering for non-admins
+    if (req.user.role !== 'admin') {
+      filter.$or = [
+        { assignedTo: req.user._id },
+        { createdBy: req.user._id }
+      ];
     }
 
     const [total, statusCounts] = await Promise.all([
-      Lead.countDocuments(),
+      Lead.countDocuments(filter),
       Lead.aggregate([
+        { $match: filter },
         {
           $group: {
             _id: '$status',
@@ -466,11 +398,16 @@ exports.getLeadStats = async (req, res) => {
     };
 
     statusCounts.forEach((s) => {
-      stats[s._id] = s.count;
+      if (stats[s._id] !== undefined) {
+        stats[s._id] = s.count;
+      }
     });
 
+    // Add value filter matching
+    const matchFilter = { status: { $nin: ['Lost'] }, ...filter };
+    
     const valueAggregation = await Lead.aggregate([
-      { $match: { status: { $nin: ['Lost'] } } },
+      { $match: matchFilter },
       { $group: { _id: null, total: { $sum: '$dealValue' } } }
     ]);
     
@@ -484,12 +421,6 @@ exports.getLeadStats = async (req, res) => {
     });
 
   } catch (err) {
-
-    console.error('Lead stats error:', err);
-
-    res.status(500).json({
-      success: false,
-      message: err.message
-    });
+    next(err);
   }
 };

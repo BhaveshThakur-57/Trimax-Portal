@@ -8,19 +8,21 @@ const {
   updateInquiryStatus
 } = require('../controllers/inquiryController');
 const { protect, authorize } = require('../middleware/auth');
+const { publicLimiter } = require('../middleware/rateLimiter');
 
 const router = express.Router();
 
-// Public route
-router.post('/', createInquiry);
+// ✅ Public route — with rate limiting to prevent spam
+router.post('/', publicLimiter, createInquiry);
 
-// Protected routes
+// ✅ Protected + Admin-only routes (was accessible by any employee before)
 router.use(protect);
+router.use(authorize('admin'));
 
 router.get('/', getInquiries);
 router.get('/:id', getInquiry);
 router.put('/:id', updateInquiry);
 router.patch('/:id/status', updateInquiryStatus);
-router.delete('/:id', authorize('admin'), deleteInquiry);
+router.delete('/:id', deleteInquiry);
 
 module.exports = router;

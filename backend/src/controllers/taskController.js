@@ -6,7 +6,7 @@ const { createNotification } = require('./notificationController');
 // @desc    Create/Assign new task
 // @route   POST /api/tasks
 // @access  Private/Admin
-exports.createTask = async (req, res) => {
+exports.createTask = async (req, res, next) => {
   try {
     const { title, description, assignedTo, assignedBy, priority, dueDate } = req.body;
 
@@ -55,12 +55,7 @@ exports.createTask = async (req, res) => {
       data: populatedTask
     });
   } catch (error) {
-    console.error('Create task error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to create task',
-      error: error.message
-    });
+    next(error);
   }
 };
 
@@ -69,7 +64,7 @@ exports.createTask = async (req, res) => {
 // @access  Private/Admin
 // backend/controllers/taskController.js
 
-exports.getAllTasks = async (req, res) => {
+exports.getAllTasks = async (req, res, next) => {
   try {
     let tasks = await Task.find()
       .populate('assignedTo', 'name email employeeId')
@@ -101,19 +96,14 @@ exports.getAllTasks = async (req, res) => {
       data: tasks
     });
   } catch (error) {
-    console.error('Get all tasks error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch tasks',
-      error: error.message
-    });
+    next(error);
   }
 };
 
 // @desc    Get tasks assigned to logged-in employee
 // @route   GET /api/tasks/my-tasks
 // @access  Private
-exports.getMyTasks = async (req, res) => {
+exports.getMyTasks = async (req, res, next) => {
   try {
     const tasks = await Task.find({ assignedTo: req.user._id })
       .sort({ createdAt: -1 });
@@ -123,19 +113,14 @@ exports.getMyTasks = async (req, res) => {
       data: tasks
     });
   } catch (error) {
-    console.error('Get my tasks error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch tasks',
-      error: error.message
-    });
+    next(error);
   }
 };
 
 // @desc    Update task status
 // @route   PUT /api/tasks/:id/status
 // @access  Private
-exports.updateTaskStatus = async (req, res) => {
+exports.updateTaskStatus = async (req, res, next) => {
   try {
     const { status } = req.body;
 
@@ -173,19 +158,14 @@ exports.updateTaskStatus = async (req, res) => {
       data: updatedTask
     });
   } catch (error) {
-    console.error('Update task status error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to update task',
-      error: error.message
-    });
+    next(error);
   }
 };
 
 // @desc    Delete task
 // @route   DELETE /api/tasks/:id
 // @access  Private/Admin
-exports.deleteTask = async (req, res) => {
+exports.deleteTask = async (req, res, next) => {
   try {
     const task = await Task.findById(req.params.id);
 
@@ -203,11 +183,6 @@ exports.deleteTask = async (req, res) => {
       message: 'Task deleted successfully'
     });
   } catch (error) {
-    console.error('Delete task error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to delete task',
-      error: error.message
-    });
+    next(error);
   }
 };

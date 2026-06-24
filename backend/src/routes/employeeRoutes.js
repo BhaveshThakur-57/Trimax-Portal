@@ -10,18 +10,20 @@ const { protect, authorize } = require('../middleware/auth');
 
 const router = express.Router();
 
-// All routes are protected
+// ✅ All employee management routes require admin
+// (employees have their own /auth/me endpoint to view their own data)
 router.use(protect);
+router.use(authorize('admin'));
 
 router
   .route('/')
   .get(getEmployees)
-  .post(authorize('admin'), createEmployee);
+  .post(createEmployee);
 
 router
   .route('/:id')
   .get(getEmployee)
-  .put(authorize('admin'), updateEmployee)
-  .delete(authorize('admin'), deleteEmployee);
+  .put(updateEmployee)
+  .delete(deleteEmployee);
 
 module.exports = router;

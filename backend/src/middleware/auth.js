@@ -5,10 +5,9 @@ exports.protect = async (req, res, next) => {
   try {
     let token;
 
+    // ✅ Only accept token from Authorization header (never from query string)
     if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
       token = req.headers.authorization.split(' ')[1];
-    } else if (req.query.token) {
-      token = req.query.token;
     }
 
     if (!token) {
@@ -26,7 +25,15 @@ exports.protect = async (req, res, next) => {
       if (!req.user) {
         return res.status(401).json({
           success: false,
-          message: 'User not found'
+          message: 'User not found or deactivated'
+        });
+      }
+
+      // ✅ Block inactive users at middleware level
+      if (!req.user.isActive) {
+        return res.status(401).json({
+          success: false,
+          message: 'Account deactivated. Contact admin.'
         });
       }
 
@@ -42,7 +49,7 @@ exports.protect = async (req, res, next) => {
   }
 };
 
-// ✅ Case-insensitive role check, sirf Admin aur user
+// ✅ Case-insensitive role check
 exports.authorize = (...roles) => {
   return (req, res, next) => {
     const userRole = req.user.role.toLowerCase();

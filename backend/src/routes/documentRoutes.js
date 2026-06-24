@@ -28,7 +28,7 @@ const storage = multer.diskStorage({
 });
 
 const fileFilter = (req, file, cb) => {
-  const allowed = [
+  const allowedMimes = [
     'application/pdf',
     'image/jpeg',
     'image/jpg',
@@ -36,10 +36,15 @@ const fileFilter = (req, file, cb) => {
     'application/msword',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
   ];
-  if (allowed.includes(file.mimetype)) {
+  
+  const allowedExtensions = ['.pdf', '.jpg', '.jpeg', '.png', '.doc', '.docx'];
+  
+  const ext = path.extname(file.originalname).toLowerCase();
+  
+  if (allowedMimes.includes(file.mimetype) && allowedExtensions.includes(ext)) {
     cb(null, true);
   } else {
-    cb(new Error('Only PDF, Word, JPG, PNG files are allowed'), false);
+    cb(new Error('Only PDF, Word, JPG, PNG files with matching extensions are allowed'), false);
   }
 };
 

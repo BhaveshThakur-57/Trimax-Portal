@@ -13,14 +13,15 @@ const {
   removeProfilePicture
 } = require('../controllers/authController');
 const { protect, authorize } = require('../middleware/auth');
+const { authLimiter } = require('../middleware/rateLimiter');
 
 const router = express.Router();
 
-// Public routes
-router.post('/register', register);
-router.post('/login', login);
-router.post('/forgot-password', forgotPassword);
-router.put('/reset-password/:resetToken', resetPassword);
+// Public routes — with strict rate limiting (5 req/min/IP)
+router.post('/register', authLimiter, register);
+router.post('/login', authLimiter, login);
+router.post('/forgot-password', authLimiter, forgotPassword);
+router.put('/reset-password/:resetToken', authLimiter, resetPassword);
 
 // Protected routes (any logged-in user)
 router.get('/me', protect, getMe);

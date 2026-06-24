@@ -1,10 +1,13 @@
 const User = require('../models/User');
 const { createNotification } = require('./notificationController');
+const { stripDangerousFields, PROTECTED_USER_FIELDS } = require('../middleware/sanitize');
 
 // GET ALL USERS
-exports.getUsers = async (req, res) => {
+exports.getUsers = async (req, res, next) => {
   try {
-    const users = await User.find().sort({ createdAt: -1 });
+    const users = await User.find()
+      .select('-password')
+      .sort({ createdAt: -1 });
 
     res.status(200).json({
       success: true,
@@ -12,17 +15,14 @@ exports.getUsers = async (req, res) => {
       data: users
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
+    next(error);
   }
 };
 
 // GET SINGLE USER
-exports.getUser = async (req, res) => {
+exports.getUser = async (req, res, next) => {
   try {
-    const user = await User.findById(req.params.id);
+    const user = await User.findById(req.params.id).select('-password');
 
     if (!user) {
       return res.status(404).json({
@@ -53,21 +53,24 @@ exports.getUser = async (req, res) => {
       data: userData
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
+    next(error);
   }
 };
 
 // CREATE USER
-exports.createUser = async (req, res) => {
+exports.createUser = async (req, res, next) => {
   try {
+    const safeBody = stripDangerousFields(req.body, PROTECTED_USER_FIELDS);
     const {
-      name, email, password, role,
+      name, email,
       department, designation, salary,
       joiningDate, phone, address, workingType
-    } = req.body;
+    } = safeBody;
+
+    // Use a default password if not provided (admin creating user)
+    const password = req.body.password || 'User@123';
+    // Only allow admin to set role directly during creation
+    const role = req.body.role || 'employee';
 
     const userExists = await User.findOne({ email });
     if (userExists) {
@@ -81,7 +84,7 @@ exports.createUser = async (req, res) => {
       name,
       email,
       password,
-      role: role || 'employee',
+      role,
       department,
       designation,
       salary,
@@ -103,29 +106,25 @@ exports.createUser = async (req, res) => {
             'user',
             `/users/${user._id}`
           );
-        } catch (notifErr) {
-          // Silent fail for notifications
-        }
+        } catch (notifErr) {}
       }
-    } catch (notifMainErr) {
-      // Silent fail
-    }
+    } catch (notifMainErr) {}
+
+    // Exclude password from response
+    const createdUser = await User.findById(user._id).select('-password');
 
     res.status(201).json({
       success: true,
       message: 'User created successfully',
-      data: user
+      data: createdUser
     });
   } catch (error) {
-    res.status(400).json({
-      success: false,
-      message: error.message
-    });
+    next(error);
   }
 };
 
 // UPDATE USER
-exports.updateUser = async (req, res) => {
+exports.updateUser = async (req, res, next) => {
   try {
     const fieldsToUpdate = {
       name: req.body.name,
@@ -148,7 +147,7 @@ exports.updateUser = async (req, res) => {
       req.params.id,
       fieldsToUpdate,
       { new: true, runValidators: true }
-    );
+    ).select('-password');
 
     if (!user) {
       return res.status(404).json({
@@ -162,15 +161,12 @@ exports.updateUser = async (req, res) => {
       data: user
     });
   } catch (error) {
-    res.status(400).json({
-      success: false,
-      message: error.message
-    });
+    next(error);
   }
 };
 
 // DELETE USER
-exports.deleteUser = async (req, res) => {
+exports.deleteUser = async (req, res, next) => {
   try {
     const user = await User.findByIdAndDelete(req.params.id);
 
@@ -187,21 +183,18 @@ exports.deleteUser = async (req, res) => {
       message: 'User deleted successfully'
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
+    next(error);
   }
 };
 
 // MAKE ADMIN
-exports.makeAdmin = async (req, res) => {
+exports.makeAdmin = async (req, res, next) => {
   try {
     const user = await User.findByIdAndUpdate(
       req.params.id,
       { role: 'admin' },
       { new: true }
-    );
+    ).select('-password');
 
     if (!user) {
       return res.status(404).json({
@@ -216,21 +209,18 @@ exports.makeAdmin = async (req, res) => {
       message: `${user.name} is now Admin`
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
+    next(error);
   }
 };
 
 // REMOVE ADMIN
-exports.removeAdmin = async (req, res) => {
+exports.removeAdmin = async (req, res, next) => {
   try {
     const user = await User.findByIdAndUpdate(
       req.params.id,
       { role: 'employee' },
       { new: true }
-    );
+    ).select('-password');
 
     if (!user) {
       return res.status(404).json({
@@ -245,9 +235,6 @@ exports.removeAdmin = async (req, res) => {
       message: `${user.name} admin role removed`
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
+    next(error);
   }
 };

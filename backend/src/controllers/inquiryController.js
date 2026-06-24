@@ -4,8 +4,8 @@ const { createNotification } = require('./notificationController');
 
 // @desc    Get all inquiries
 // @route   GET /api/inquiries
-// @access  Private
-exports.getInquiries = async (req, res) => {
+// @access  Private/Admin
+exports.getInquiries = async (req, res, next) => {
   try {
     const inquiries = await Inquiry.find().sort({ createdAt: -1 });
 
@@ -15,17 +15,14 @@ exports.getInquiries = async (req, res) => {
       data: inquiries
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
+    next(error);
   }
 };
 
 // @desc    Get single inquiry
 // @route   GET /api/inquiries/:id
-// @access  Private
-exports.getInquiry = async (req, res) => {
+// @access  Private/Admin
+exports.getInquiry = async (req, res, next) => {
   try {
     const inquiry = await Inquiry.findById(req.params.id);
 
@@ -41,35 +38,50 @@ exports.getInquiry = async (req, res) => {
       data: inquiry
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
+    next(error);
   }
 };
 
 // @desc    Create new inquiry
 // @route   POST /api/inquiries
 // @access  Public
-exports.createInquiry = async (req, res) => {
+exports.createInquiry = async (req, res, next) => {
   try {
+    // Explicit field extraction to prevent mass-assignment
+    const { name, email, subject, message } = req.body;
 
-    const inquiry = await Inquiry.create(req.body);
+    if (!name || !email || !subject || !message) {
+      return res.status(400).json({
+        success: false,
+        message: 'Name, email, subject, and message are required'
+      });
+    }
 
-    // ✅ Find all admins
-    const admins = await User.find({
-      role: { $regex: /^admin$/i }
+    const inquiry = await Inquiry.create({
+      name,
+      email,
+      subject,
+      message,
+      status: 'New'
     });
 
-    // ✅ Create notifications
-    for (const admin of admins) {
-      await createNotification(
-        admin._id,
-        'New Inquiry Received',
-        `${inquiry.name} inquired about: ${inquiry.subject}`,
-        'inquiry',
-        `/inquiries/${inquiry._id}`
-      );
+    // Notify admins
+    try {
+      const admins = await User.find({
+        role: { $regex: /^admin$/i }
+      });
+
+      for (const admin of admins) {
+        await createNotification(
+          admin._id,
+          'New Inquiry Received',
+          `${inquiry.name} inquired about: ${inquiry.subject}`,
+          'inquiry',
+          `/inquiries/${inquiry._id}`
+        );
+      }
+    } catch (notifErr) {
+      // Silent fail
     }
 
     res.status(201).json({
@@ -79,24 +91,27 @@ exports.createInquiry = async (req, res) => {
     });
 
   } catch (error) {
-
-    console.error('Create inquiry error:', error);
-
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
+    next(error);
   }
 };
 
 // @desc    Update inquiry
 // @route   PUT /api/inquiries/:id
-// @access  Private
-exports.updateInquiry = async (req, res) => {
+// @access  Private/Admin
+exports.updateInquiry = async (req, res, next) => {
   try {
+    // Explicit field extraction
+    const { name, email, subject, message, status } = req.body;
+    const fieldsToUpdate = {};
+    if (name) fieldsToUpdate.name = name;
+    if (email) fieldsToUpdate.email = email;
+    if (subject) fieldsToUpdate.subject = subject;
+    if (message) fieldsToUpdate.message = message;
+    if (status) fieldsToUpdate.status = status;
+
     const inquiry = await Inquiry.findByIdAndUpdate(
       req.params.id,
-      req.body,
+      fieldsToUpdate,
       {
         new: true,
         runValidators: true
@@ -115,17 +130,14 @@ exports.updateInquiry = async (req, res) => {
       data: inquiry
     });
   } catch (error) {
-    res.status(400).json({
-      success: false,
-      message: error.message
-    });
+    next(error);
   }
 };
 
 // @desc    Delete inquiry
 // @route   DELETE /api/inquiries/:id
 // @access  Private/Admin
-exports.deleteInquiry = async (req, res) => {
+exports.deleteInquiry = async (req, res, next) => {
   try {
     const inquiry = await Inquiry.findByIdAndDelete(req.params.id);
 
@@ -142,19 +154,15 @@ exports.deleteInquiry = async (req, res) => {
       message: 'Inquiry deleted successfully'
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
+    next(error);
   }
 };
 
 // @desc    Update inquiry status
 // @route   PATCH /api/inquiries/:id/status
-// @access  Private
-exports.updateInquiryStatus = async (req, res) => {
+// @access  Private/Admin
+exports.updateInquiryStatus = async (req, res, next) => {
   try {
-
     const { status } = req.body;
 
     const inquiry = await Inquiry.findByIdAndUpdate(
@@ -179,10 +187,6 @@ exports.updateInquiryStatus = async (req, res) => {
     });
 
   } catch (error) {
-
-    res.status(400).json({
-      success: false,
-      message: error.message
-    });
+    next(error);
   }
 };

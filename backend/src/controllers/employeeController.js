@@ -1,9 +1,10 @@
 const User = require('../models/User');
+const { stripDangerousFields, PROTECTED_EMPLOYEE_UPDATE_FIELDS } = require('../middleware/sanitize');
 
 // @desc    Get all employees (role='employee' from User model)
 // @route   GET /api/employees
-// @access  Private
-exports.getEmployees = async (req, res) => {
+// @access  Private/Admin
+exports.getEmployees = async (req, res, next) => {
   try {
     const employees = await User.find({ role: 'employee' })
       .select('-password')
@@ -15,17 +16,14 @@ exports.getEmployees = async (req, res) => {
       data: employees
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
+    next(error);
   }
 };
 
 // @desc    Get single employee
 // @route   GET /api/employees/:id
-// @access  Private
-exports.getEmployee = async (req, res) => {
+// @access  Private/Admin
+exports.getEmployee = async (req, res, next) => {
   try {
     const employee = await User.findById(req.params.id).select('-password');
     
@@ -41,18 +39,16 @@ exports.getEmployee = async (req, res) => {
       data: employee
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
+    next(error);
   }
 };
 
 // @desc    Create new employee
 // @route   POST /api/employees
 // @access  Private/Admin
-exports.createEmployee = async (req, res) => {
+exports.createEmployee = async (req, res, next) => {
   try {
+    // Only accept explicit fields to avoid mass-assignment
     const { name, email, password, department, designation, phone, salary, workingType } = req.body;
 
     const userExists = await User.findOne({ email });
@@ -64,7 +60,14 @@ exports.createEmployee = async (req, res) => {
     }
 
     const employee = await User.create({
-      ...req.body,
+      name,
+      email,
+      password: password || 'User@123',
+      department,
+      designation,
+      phone,
+      salary,
+      workingType: workingType || 'Office',
       role: 'employee',
       createdBy: req.user._id
     });
@@ -77,21 +80,21 @@ exports.createEmployee = async (req, res) => {
       data: created
     });
   } catch (error) {
-    res.status(400).json({
-      success: false,
-      message: error.message
-    });
+    next(error);
   }
 };
 
 // @desc    Update employee
 // @route   PUT /api/employees/:id
 // @access  Private/Admin
-exports.updateEmployee = async (req, res) => {
+exports.updateEmployee = async (req, res, next) => {
   try {
+    // Strip protected fields so admin cannot accidentally change them (like role to admin, password, etc)
+    const safeBody = stripDangerousFields(req.body, PROTECTED_EMPLOYEE_UPDATE_FIELDS);
+
     const employee = await User.findByIdAndUpdate(
       req.params.id,
-      req.body,
+      safeBody,
       { new: true, runValidators: true }
     ).select('-password');
     
@@ -107,17 +110,14 @@ exports.updateEmployee = async (req, res) => {
       data: employee
     });
   } catch (error) {
-    res.status(400).json({
-      success: false,
-      message: error.message
-    });
+    next(error);
   }
 };
 
 // @desc    Delete employee
 // @route   DELETE /api/employees/:id
 // @access  Private/Admin
-exports.deleteEmployee = async (req, res) => {
+exports.deleteEmployee = async (req, res, next) => {
   try {
     const employee = await User.findByIdAndDelete(req.params.id);
     
@@ -134,9 +134,6 @@ exports.deleteEmployee = async (req, res) => {
       message: 'Employee deleted successfully'
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
+    next(error);
   }
 };

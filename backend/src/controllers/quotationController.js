@@ -4,12 +4,13 @@ const User = require('../models/User');
 
 const { generateInvoicePDF } = require('../utils/pdfGenerator');
 const { createNotification } = require('./notificationController');
+const { escapeRegex } = require('../middleware/sanitize');
 
 // ======================================================
 // GET ALL QUOTATIONS
 // ======================================================
 
-exports.getAllQuotations = async (req, res) => {
+exports.getAllQuotations = async (req, res, next) => {
 
   try {
 
@@ -22,18 +23,18 @@ exports.getAllQuotations = async (req, res) => {
     }
 
     if (search) {
-
+      const safeSearch = escapeRegex(search);
       query.$or = [
         {
           invoiceNumber: {
-            $regex: search,
+            $regex: safeSearch,
             $options: 'i'
           }
         },
 
         {
           'customer.name': {
-            $regex: search,
+            $regex: safeSearch,
             $options: 'i'
           }
         }
@@ -51,14 +52,7 @@ exports.getAllQuotations = async (req, res) => {
     });
 
   } catch (error) {
-
-    console.error(error);
-
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch quotations',
-      error: error.message
-    });
+    next(error);
   }
 };
 
@@ -66,7 +60,7 @@ exports.getAllQuotations = async (req, res) => {
 // GET SINGLE QUOTATION
 // ======================================================
 
-exports.getQuotationById = async (req, res) => {
+exports.getQuotationById = async (req, res, next) => {
 
   try {
 
@@ -87,13 +81,7 @@ exports.getQuotationById = async (req, res) => {
     });
 
   } catch (error) {
-
-    console.error(error);
-
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    next(error);
   }
 };
 
@@ -101,7 +89,7 @@ exports.getQuotationById = async (req, res) => {
 // CREATE QUOTATION
 // ======================================================
 
-exports.createQuotation = async (req, res) => {
+exports.createQuotation = async (req, res, next) => {
 
   try {
 
@@ -236,14 +224,7 @@ exports.createQuotation = async (req, res) => {
     });
 
   } catch (error) {
-
-    console.error('Quotation create error:', error);
-
-    res.status(500).json({
-      success: false,
-      message: 'Failed to create quotation',
-      error: error.message
-    });
+    next(error);
   }
 };
 
@@ -251,7 +232,7 @@ exports.createQuotation = async (req, res) => {
 // UPDATE QUOTATION
 // ======================================================
 
-exports.updateQuotation = async (req, res) => {
+exports.updateQuotation = async (req, res, next) => {
 
   try {
 
@@ -431,13 +412,7 @@ exports.updateQuotation = async (req, res) => {
     });
 
   } catch (error) {
-
-    console.error(error);
-
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    next(error);
   }
 };
 
@@ -445,7 +420,7 @@ exports.updateQuotation = async (req, res) => {
 // UPDATE QUOTATION STATUS
 // ======================================================
 
-exports.updateQuotationStatus = async (req, res) => {
+exports.updateQuotationStatus = async (req, res, next) => {
   try {
     const { status } = req.body;
     
@@ -479,11 +454,7 @@ exports.updateQuotationStatus = async (req, res) => {
     });
 
   } catch (error) {
-    console.error(error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    next(error);
   }
 };
 
@@ -491,7 +462,7 @@ exports.updateQuotationStatus = async (req, res) => {
 // DELETE
 // ======================================================
 
-exports.deleteQuotation = async (req, res) => {
+exports.deleteQuotation = async (req, res, next) => {
 
   try {
 
@@ -514,13 +485,7 @@ exports.deleteQuotation = async (req, res) => {
     });
 
   } catch (error) {
-
-    console.error(error);
-
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    next(error);
   }
 };
 
@@ -528,7 +493,7 @@ exports.deleteQuotation = async (req, res) => {
 // PDF
 // ======================================================
 
-exports.generatePDF = async (req, res) => {
+exports.generatePDF = async (req, res, next) => {
 
   try {
 
@@ -551,15 +516,10 @@ exports.generatePDF = async (req, res) => {
     );
 
   } catch (error) {
-
-    console.error(error);
-
     if (!res.headersSent) {
-
-      res.status(500).json({
-        success: false,
-        error: error.message
-      });
+      next(error);
+    } else {
+      console.error('Error generating PDF after headers sent:', error.message);
     }
   }
 };
@@ -568,7 +528,7 @@ exports.generatePDF = async (req, res) => {
 // STATS
 // ======================================================
 
-exports.getQuotationStats = async (req, res) => {
+exports.getQuotationStats = async (req, res, next) => {
 
   try {
 
@@ -666,13 +626,7 @@ exports.getQuotationStats = async (req, res) => {
     });
 
   } catch (error) {
-
-    console.error(error);
-
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    next(error);
   }
 };
 
@@ -682,7 +636,7 @@ exports.getQuotationStats = async (req, res) => {
 
 const { sendQuotationEmail } = require('../utils/emailService');
 
-exports.sendEmail = async (req, res) => {
+exports.sendEmail = async (req, res, next) => {
   try {
     const quotation = await Quotation.findById(req.params.id)
       .populate('createdBy', 'name email');
@@ -702,8 +656,7 @@ exports.sendEmail = async (req, res) => {
     await quotation.save();
 
     res.json({ success: true, message: 'Quotation sent successfully' });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, error: err.message });
+  } catch (error) {
+    next(error);
   }
 };
